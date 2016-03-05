@@ -3,9 +3,6 @@ import argparse
 import re
 from copy import deepcopy
 
-clauses = []
-queries = []
-predicateMap = {}
 output = open("output.txt", "w")
 
 class Predicate:
@@ -54,18 +51,24 @@ def printToOutput(qoa, query):
 def fol_ask(clauses, queries):
     
     for query in queries: 
-        res,_,_ = fol_or(clauses, query)
+        res,_,query = fol_or(clauses, query)
         printToOutput(str(res), query)
         if res == False:
             return False
     return True
 
-def fol_or(clauses, query):
-    printToOutput("Ask", query)
-    #print "Ask: ", query.name, query.vargs
+def fol_or_reverted(matchedClauses, index, query):
+    
+    return
+
+def fol_or(origClauses, query):
+    clauses = deepcopy(origClauses)
     matchedClauses = match_clauses(clauses, query)
     origQuery = deepcopy(query)
+    if len(matchedClauses) == 0:
+        printToOutput("Ask", query)
     for clause in matchedClauses:
+        printToOutput("Ask", query)
         # clause is fact
         if clause.isFact() == True:
             isSubstituted = False
@@ -87,9 +90,9 @@ def fol_or(clauses, query):
         # clause is => : have to perform and search
         else:
             query, clause = unify(query, clause)
-            resA, subMapA = fol_and(clauses, clause.lhs)
+            resA, subMapA = fol_and(clauses, clause.lhs, origClauses)
             if resA == False:
-                query = origQuery
+                query = deepcopy(origQuery)
             else:
                 substituteRHS(clause.rhs, subMapA)
                 if equals(query, clause.rhs):
@@ -112,14 +115,15 @@ def equals(query, rhs):
     return True
     
 
-def fol_and(clauses, lhsQueries):
+def fol_and(clauses, lhsQueries, origClauses):
     subMapForAnd = {}
     if len(lhsQueries) == 0:
         return True, subMapForAnd
     for query in lhsQueries:
         oldQuery = deepcopy(query)
-        res, issub, query = fol_or(clauses, query)
+        res, issub, query = fol_or(origClauses, query)
         if res == False:
+            printToOutput("False", query)
             return res, subMapForAnd
         printToOutput("True", query)
         #print "True: ", query.name, query.vargs
@@ -167,9 +171,11 @@ def match_clauses(clauses, query):
     for clause in clauses:
         rhsClause = clause.rhs
         if rhsClause.name == query.name:
+            add = True
             for i in range(rhsClause.nargs):
                 if rhsClause.vargs[i][0].isupper() and query.vargs[i][0].isupper() and rhsClause.vargs[i] != query.vargs[i]:
-                    break
+                    add = False
+            if add:
                 matchedClauses.append(clause)
     return matchedClauses
 
@@ -225,6 +231,8 @@ def parseRHS(rhsStr, clause):
 
 # main
 if __name__ == "__main__":
+    clauses = []
+    queries = []
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True)
     args = parser.parse_args()
