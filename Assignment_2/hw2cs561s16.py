@@ -48,14 +48,26 @@ def printToOutput(qoa, query):
     ostr = ostr + ")\n" 
     output.write(qoa + ": " + ostr)
 
+
+def fol_ask_query(clauses, query):
+    for resQuery in fol_or(clauses, query):
+        if resQuery == None:
+            printToOutput(str(False), query)
+            return False
+        else:
+            printToOutput(str(True), resQuery)
+            return True
+    printToOutput(str(False), query)
+    return False
+        
 def fol_ask(clauses, queries):
     
-    for query in queries: 
-        res,_,query = fol_or(clauses, query)
-        printToOutput(str(res), query)
-        if res == False:
+    for query in queries:
+        if fol_ask_query(clauses, query) == False:
             return False
+            
     return True
+
 
 def fol_or_reverted(matchedClauses, index, query):
     
@@ -67,39 +79,62 @@ def fol_or(origClauses, query):
     origQuery = deepcopy(query)
     if len(matchedClauses) == 0:
         printToOutput("Ask", query)
+        yield None
     for clause in matchedClauses:
         printToOutput("Ask", query)
         # clause is fact
         if clause.isFact() == True:
-            isSubstituted = False
+            #isSubstituted = False
             subMap = {}
             ret = True
+            newQuery = deepcopy(query)
             if clause.rhs.nargs == query.nargs and clause.rhs.vargs != query.vargs:
                 for i in range(clause.rhs.nargs):
                     if clause.rhs.vargs[i] != query.vargs[i] and query.vargs[i][0].islower():
                         subMap[query.vargs[i]] = clause.rhs.vargs[i]
-                        isSubstituted = True
+                        #isSubstituted = True
                     elif clause.rhs.vargs[i] != query.vargs[i] and query.vargs[i][0].isupper():
                         ret = False
                 if ret == False:
                     continue
-                for i in range(query.nargs):
-                    if query.vargs[i] in subMap.keys():
-                        query.vargs[i] = subMap[query.vargs[i]]
-            return ret, isSubstituted, query
+                
+                for i in range(newQuery.nargs):
+                    if newQuery.vargs[i] in subMap.keys():
+                        newQuery.vargs[i] = subMap[query.vargs[i]]
+            #return ret, isSubstituted, query
+            yield newQuery
         # clause is => : have to perform and search
         else:
-            query, clause = unify(query, clause)
-            resA, subMapA = fol_and(clauses, clause.lhs, origClauses)
-            if resA == False:
-                query = deepcopy(origQuery)
-            else:
-                substituteRHS(clause.rhs, subMapA)
-                if equals(query, clause.rhs):
-                    substituteQuery(clause.rhs, query)
-                    return True, True, query
-                
-    return False, False, query
+            copyClause = deepcopy(clause)
+            copyQuery = deepcopy(query)
+            unify(copyQuery, copyClause)
+            for subMapA in fol_and(copyClause.lhs, origClauses):
+#                 if subMapA == None:
+#                     query = deepcopy(origQuery)
+#                     break
+#                 else:
+#                     substituteRHS(copyClause.rhs, subMapA)
+#                     if equals(query, copyClause.rhs):
+#                         substituteQuery(copyClause.rhs, query)
+#                         #return True, True, query
+#                         yield query
+                if subMapA != None:
+                    newCopyClause = deepcopy(copyClause)
+                    substituteRHS(newCopyClause.rhs, subMapA)
+                    if equals(query, newCopyClause.rhs):
+                        newQuery = deepcopy(query)
+                        substituteQuery(newCopyClause.rhs, newQuery)
+                        #return True, True, query
+                        yield newQuery
+                else:
+                    query = deepcopy(origQuery)
+                    break
+            #if resGot == False:
+            #   query = deepcopy(origQuery)
+                    
+    #yield None
+    return            
+    #return False, False, query
 
 def substituteQuery(rhs, query):
     for i in range(query.nargs):
@@ -115,23 +150,36 @@ def equals(query, rhs):
     return True
     
 
-def fol_and(clauses, lhsQueries, origClauses):
+def fol_and(lhsQueriesOrig, origClauses):
     subMapForAnd = {}
-    if len(lhsQueries) == 0:
-        return True, subMapForAnd
-    for query in lhsQueries:
-        oldQuery = deepcopy(query)
-        res, issub, query = fol_or(origClauses, query)
-        if res == False:
-            printToOutput("False", query)
-            return res, subMapForAnd
-        printToOutput("True", query)
-        #print "True: ", query.name, query.vargs
-        if issub == True:
-            subMap, lhsQueries = substituteLHS(lhsQueries, oldQuery, query)
-            subMapForAnd.update(subMap)
-        
-    return True, subMapForAnd
+    if len(lhsQueriesOrig) == 0:
+        yield subMapForAnd
+    else:
+        lhsQueries = deepcopy(lhsQueriesOrig)
+        firstQuery = lhsQueries[0]
+        restAll = lhsQueries[1:]
+        oldQuery = deepcopy(firstQuery)
+        for resQuery in fol_or(origClauses, firstQuery):
+            if resQuery == None:
+                printToOutput("False", firstQuery)
+                yield None
+                return
+            else:
+                printToOutput("True", resQuery)
+                restAllCopy = deepcopy(restAll)
+                subMap = substituteLHS(restAllCopy, oldQuery, resQuery)
+                subMapForAnd.update(subMap)
+                for subMapO in fol_and(restAllCopy, origClauses):
+                    if subMapO != None and len(subMapO) > 0:
+                        subMapForAnd.update(subMapO)
+                    if subMapO == None:
+                        firstQuery = deepcopy(oldQuery)
+                        break
+                    yield subMapForAnd
+               
+            #yield subMapForAnd
+        yield None
+        return            
 
 def substituteRHS(rhs, subMapA):
     for j in range(rhs.nargs):
@@ -150,7 +198,7 @@ def substituteLHS(lhsQueries, oldQuery, query):
             if pred.vargs[j] in subMap.keys():
                 pred.vargs[j] = subMap[pred.vargs[j]]
     
-    return subMap, lhsQueries
+    return subMap
 
 def unify(query, clause):
     varMap = {}
