@@ -155,16 +155,17 @@ def enumeration_ask(query, bayes_net):
             evidence_vars[dNode.name] = queryNumMap[dNode.name]
             
         if query.type == "EU":
-            evidence_vars[utilityNode[0].name] = "+"
             probDen = enumerate_all(bayes_net, bayes_net.nodeList[:-1], evidence_vars)
         else:
             probDen = enumerate_all(bayes_net, bayes_net.nodeList, evidence_vars)
         prob = prob / probDen
+    print prob
     if query.type == "P":
         prob += 0.000000000000001
         prob = format(prob, '.2f')
     else:
         prob = int(prob + 0.5)
+    print prob
     output.write(str(prob) + "\n")
 
 def allCombinations(query):
@@ -191,11 +192,13 @@ def enumeration_ask_MEU(query, bayes_net):
     for comb in allCombs:
         queryNum, queryDen = convertToJoint(query)
         evidence_vars = deepcopy(queryNum.evidenceMap)
+        evidence_vars.update(queryNum.variableMap)
         evidence_vars.update(comb)
         evidence_vars[utilityNode[0].name] = "+"
+        queryNumMap = deepcopy(evidence_vars)
         prob = enumerate_all(bayes_net, bayes_net.nodeList, evidence_vars)
         if queryDen != None:
-            evidence_vars = deepcopy(queryDen.evidenceMap)
+            evidence_vars = {}
             evidence_vars.update(queryDen.variableMap)
             evidence_vars.update(comb)
             evidence_vars[utilityNode[0].name] = "+"
@@ -205,6 +208,7 @@ def enumeration_ask_MEU(query, bayes_net):
             maxUtilValue = prob
             decisionQueryMap = comb
     stro = ""
+    #print maxUtilValue
     for variable in query.variables:
         if variable not in query.variableMap.keys():
             stro += decisionQueryMap[variable] + " "
